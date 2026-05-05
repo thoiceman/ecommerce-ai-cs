@@ -1,0 +1,28 @@
+# Environments
+.env
+.env.*
+!.env.example
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Virtual Environments
+venv/
+env/
+.venv/
+.env_dir/
+
+# Database
+*.db
+*.sqlite3
+
+# Vector DB
+database/chroma_db/

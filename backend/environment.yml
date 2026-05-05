@@ -1,0 +1,27 @@
+name: ecommerce-ai-cs
+channels:
+  - pytorch
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pytorch>=2.4.0
+  - torchvision
+  - torchaudio
+  - pip
+  - pip:
+      - fastapi
+      - uvicorn
+      - langchain
+      - langchain-core
+      - langchain-community
+      - langgraph
+      - langchain-openai
+      - chromadb
+      - sentence-transformers
+      - pymysql
+      - sqlalchemy
+      - python-dotenv
+      - pydantic
+      - cryptography
+      - numpy<2.0.0
