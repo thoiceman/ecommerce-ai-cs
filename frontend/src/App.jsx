@@ -55,7 +55,7 @@ function App() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-gray-800 tracking-tight">电商售后智能客服</h1>
-              <p className="text-xs text-gray-500">RAG + Multi-Agent 架构演示</p>
+              <p className="text-xs text-gray-500">RAG + 智能售后 Agent 演示</p>
             </div>
           </div>
           <div className="flex items-center text-emerald-600 text-sm font-medium space-x-4">
