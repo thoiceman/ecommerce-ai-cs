@@ -20,8 +20,12 @@ dependencies:
       - chromadb
       - sentence-transformers
       - pymysql
+      - psycopg2-binary  # 预留给 PostgreSQL 的高并发架构
+      - redis            # 预留给 Redis 缓存或状态管理
       - sqlalchemy
       - python-dotenv
       - pydantic
       - cryptography
       - numpy<2.0.0
+      - pytest
+      - pytest-asyncio

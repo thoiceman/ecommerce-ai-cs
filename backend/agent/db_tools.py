@@ -5,14 +5,7 @@ from dotenv import load_dotenv
 from langchain_core.tools import tool
 
 from database.models import Order, User, Product, OrderStatus
-
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ecommerce_ai.db")
-
-# SQLite 特殊参数
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+from database.deps import SessionLocal
 
 @tool
 def get_order_status(order_no: str) -> str:

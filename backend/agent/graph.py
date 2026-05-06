@@ -104,7 +104,9 @@ def chat_with_agent(user_input: str, history: list = None):
     """
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
     if history:
-        for msg in history:
+        # 滑动窗口记忆管理：只保留最近 6 条消息（3轮对话），避免 Token 超限
+        window_history = history[-6:]
+        for msg in window_history:
             if msg['role'] == 'user':
                 messages.append(HumanMessage(content=msg['content']))
             elif msg['role'] == 'assistant':
@@ -125,7 +127,9 @@ async def astream_chat_with_agent(user_input: str, history: list = None):
     """
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
     if history:
-        for msg in history:
+        # 滑动窗口记忆管理：只保留最近 6 条消息（3轮对话），避免 Token 超限
+        window_history = history[-6:]
+        for msg in window_history:
             if msg['role'] == 'user':
                 messages.append(HumanMessage(content=msg['content']))
             elif msg['role'] == 'assistant':

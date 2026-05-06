@@ -76,13 +76,32 @@ def add_document_to_db(content: str, source: str = "custom_upload.md"):
     print(f"成功将 {len(docs)} 个文本块存入知识库。")
     return len(docs)
 
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
+
+def rewrite_query(query: str) -> str:
+    """使用 LLM 将用户的口语化提问改写为标准的知识库检索词"""
+    llm = ChatOpenAI(model="qwen-max", temperature=0.1)
+    prompt = f"你是一个电商知识库检索助手。请将以下用户的口语化提问改写为适合在退换货政策知识库中检索的标准关键词或短语，只返回改写后的关键词，不要有多余的话。\n\n用户提问：{query}"
+    try:
+        response = llm.invoke([HumanMessage(content=prompt)])
+        return response.content.strip()
+    except Exception as e:
+        print(f"Query重写失败，使用原词: {e}")
+        return query
+
 def query_policy(query: str) -> str:
     """
     检索电商退换货政策文档，回答用户关于规则的问题。
     """
     vector_store = get_vector_store()
-    # 检索最相关的 3 个文档片段
-    docs = vector_store.similarity_search(query, k=3)
+    
+    # 1. 经过 Query Rewriting 提升检索准确度
+    rewritten_query = rewrite_query(query)
+    print(f"Original Query: {query} | Rewritten Query: {rewritten_query}")
+    
+    # 2. 检索最相关的 3 个文档片段
+    docs = vector_store.similarity_search(rewritten_query, k=3)
     if not docs:
         return "没有找到相关的政策说明。"
     

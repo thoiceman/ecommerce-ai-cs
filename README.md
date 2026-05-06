@@ -27,6 +27,46 @@
 
 ---
 
+## 系统架构
+
+### 整体架构图
+```mermaid
+graph TD
+    Client[前端 React UI] -->|HTTP/SSE| API[FastAPI 后端]
+    API -->|路由分发| Router[Routers]
+    Router -->|查询/保存状态| DB[(SQLite/PostgreSQL)]
+    Router -->|会话流转| Agent[LangGraph Multi-Agent]
+    
+    Agent -->|调用| LLM[大语言模型 Qwen/OpenAI]
+    Agent -->|工具调用| Tools[Agent Tools]
+    
+    Tools -->|查询订单/退货| DB
+    Tools -->|政策检索| RAG[RAG 模块]
+    
+    RAG -->|Query 重写| LLM
+    RAG -->|向量检索| VectorDB[(ChromaDB)]
+```
+
+### 智能体状态机流转 (LangGraph)
+```mermaid
+stateDiagram-v2
+    [*] --> Agent: 用户输入
+    Agent --> Tools: 决定调用工具
+    Agent --> [*]: 直接回答用户
+    
+    Tools --> SearchPolicy: 政策咨询
+    Tools --> OrderQuery: 订单查询
+    Tools --> RequestReturn: 申请退货
+    Tools --> HumanHandoff: 情绪激动/转接人工
+    
+    SearchPolicy --> Agent: 返回检索结果
+    OrderQuery --> Agent: 返回订单状态
+    RequestReturn --> Agent: 返回退货处理结果
+    HumanHandoff --> [*]: [中断] 切换至人工客服
+```
+
+---
+
 ## 项目结构
 ```text
 ecommerce-ai-cs/
