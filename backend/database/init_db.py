@@ -7,7 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
-from database.models import Base, User, Product, Order, OrderStatus
+from database.models import Base, User, Product, Order, OrderStatus, ChatSession, ChatMessage, SessionStatus
 
 load_dotenv()
 

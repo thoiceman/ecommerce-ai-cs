@@ -63,6 +63,9 @@ cd backend
 # 使用 environment.yml 创建 conda 环境
 conda env create -f environment.yml
 
+# 如果后续修改了 environment.yml，可以使用以下命令更新依赖：
+# conda env update -f environment.yml --prune
+
 # 激活虚拟环境
 conda activate ecommerce-ai-cs
 

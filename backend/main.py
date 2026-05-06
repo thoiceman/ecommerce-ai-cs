@@ -1,12 +1,36 @@
 import asyncio
-from fastapi import FastAPI, HTTPException
+import uuid
+import json
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 import uvicorn
 import logging
 
-from agent.graph import chat_with_agent
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, desc
+from sqlalchemy.orm import sessionmaker
+
+from database.models import Base, ChatSession, ChatMessage, SessionStatus
+from agent.graph import chat_with_agent, astream_chat_with_agent
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# DB 设置
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ecommerce_ai.db")
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -23,30 +47,136 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class ChatMessage(BaseModel):
+class ChatMessageBase(BaseModel):
     role: str
     content: str
 
 class ChatRequest(BaseModel):
     message: str
-    history: Optional[List[ChatMessage]] = []
+    session_id: Optional[str] = None
+    history: Optional[List[ChatMessageBase]] = []
 
 class ChatResponse(BaseModel):
     reply: str
+    session_id: str
 
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
-    try:
-        # 将 pydantic 对象转为字典列表
+@app.post("/api/chat")
+async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
+    # 确保 session_id
+    session_id = request.session_id
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        db_session = ChatSession(id=session_id)
+        db.add(db_session)
+        db.commit()
+    else:
+        db_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        if not db_session:
+            db_session = ChatSession(id=session_id)
+            db.add(db_session)
+            db.commit()
+            
+    # 存入用户消息
+    user_msg = ChatMessage(session_id=session_id, role="user", content=request.message)
+    db.add(user_msg)
+    db.commit()
+    
+    # 如果已经是人工客服状态，则直接保存消息，不走大模型
+    if db_session.status == SessionStatus.HUMAN_AGENT:
+        async def human_agent_generator():
+            reply = "（人工客服已收到您的消息，请稍候...）"
+            yield f"data: {json.dumps({'chunk': reply, 'session_id': session_id, 'status': 'HUMAN_AGENT'}, ensure_ascii=False)}\n\n"
+            
+            db_gen = SessionLocal()
+            try:
+                ai_msg = ChatMessage(session_id=session_id, role="assistant", content=reply)
+                db_gen.add(ai_msg)
+                db_gen.commit()
+            finally:
+                db_gen.close()
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(human_agent_generator(), media_type="text/event-stream")
+
+    async def event_generator():
+        # 这里为了简化，我们仅从请求中获取 history，也可以直接从 DB 读取
         history_dicts = [{"role": msg.role, "content": msg.content} for msg in request.history]
+        full_reply = ""
+        is_handoff = False
         
-        # 将同步的阻塞调用放入线程池执行
-        reply = await asyncio.to_thread(chat_with_agent, request.message, history=history_dicts)
-        
-        return ChatResponse(reply=reply)
+        try:
+            async for chunk in astream_chat_with_agent(request.message, history=history_dicts):
+                full_reply += chunk
+                if "[转接人工]" in chunk or "[HUMAN_HANDOFF_TRIGGERED]" in full_reply:
+                    is_handoff = True
+                
+                # 过滤掉内部标识不输出给前端
+                clean_chunk = chunk.replace("[HUMAN_HANDOFF_TRIGGERED]", "")
+                if clean_chunk:
+                    yield f"data: {json.dumps({'chunk': clean_chunk, 'session_id': session_id, 'status': 'HUMAN_AGENT' if is_handoff else 'AI_AGENT'}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.error(f"Stream error: {e}", exc_info=True)
+            yield f"data: {json.dumps({'error': 'Internal server error'})}\n\n"
+        finally:
+            # 结束后将助理回复存入数据库
+            if full_reply:
+                # 因为路由可能已经返回，重新获取 session
+                db_gen = SessionLocal()
+                try:
+                    if is_handoff:
+                        db_s = db_gen.query(ChatSession).filter(ChatSession.id == session_id).first()
+                        if db_s:
+                            db_s.status = SessionStatus.HUMAN_AGENT
+                    
+                    ai_msg = ChatMessage(session_id=session_id, role="assistant", content=full_reply.replace("[HUMAN_HANDOFF_TRIGGERED]", ""))
+                    db_gen.add(ai_msg)
+                    db_gen.commit()
+                finally:
+                    db_gen.close()
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/api/sessions")
+def get_sessions(db: Session = Depends(get_db)):
+    sessions = db.query(ChatSession).order_by(desc(ChatSession.created_at)).all()
+    return [{"id": s.id, "created_at": s.created_at, "status": s.status} for s in sessions]
+
+@app.get("/api/sessions/{session_id}/messages")
+def get_session_messages(session_id: str, db: Session = Depends(get_db)):
+    messages = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at).all()
+    return [{"role": m.role, "content": m.content, "created_at": m.created_at} for m in messages]
+
+from agent.rag_tool import add_document_to_db
+
+class KBRequest(BaseModel):
+    content: str
+    source: str = "custom_upload.md"
+
+@app.post("/api/admin/kb")
+def upload_knowledge_base(request: KBRequest):
+    try:
+        chunks_count = add_document_to_db(request.content, request.source)
+        return {"status": "ok", "message": f"成功添加 {chunks_count} 个知识块"}
     except Exception as e:
-        logger.error(f"Chat endpoint error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试。")
+        logger.error(f"KB upload error: {e}")
+        raise HTTPException(status_code=500, detail="知识库更新失败")
+
+@app.get("/api/admin/stats")
+def get_admin_stats(db: Session = Depends(get_db)):
+    total_sessions = db.query(ChatSession).count()
+    human_sessions = db.query(ChatSession).filter(ChatSession.status == SessionStatus.HUMAN_AGENT).count()
+    total_messages = db.query(ChatMessage).count()
+    
+    ai_resolve_rate = 100.0
+    if total_sessions > 0:
+        ai_resolve_rate = ((total_sessions - human_sessions) / total_sessions) * 100
+        
+    return {
+        "total_sessions": total_sessions,
+        "human_sessions": human_sessions,
+        "total_messages": total_messages,
+        "ai_resolve_rate": round(ai_resolve_rate, 2)
+    }
 
 @app.get("/api/health")
 async def health_check():

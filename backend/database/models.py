@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Enum, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Enum, ForeignKey, Text
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 import enum
@@ -13,6 +13,32 @@ class OrderStatus(str, enum.Enum):
     CANCELLED = "已取消"
     RETURNING = "退货中"
     RETURNED = "已退货"
+
+class SessionStatus(str, enum.Enum):
+    AI_AGENT = "AI_AGENT"
+    HUMAN_AGENT = "HUMAN_AGENT"
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+    
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    status = Column(Enum(SessionStatus), default=SessionStatus.AI_AGENT)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(50), ForeignKey("chat_sessions.id"))
+    role = Column(String(20)) # "user", "assistant", "system"
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.now)
+    
+    session = relationship("ChatSession", back_populates="messages")
 
 class User(Base):
     __tablename__ = "users"

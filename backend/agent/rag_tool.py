@@ -54,6 +54,28 @@ def get_vector_store():
     print("知识库向量化完成。")
     return _vector_store
 
+from langchain_core.documents import Document
+
+def add_document_to_db(content: str, source: str = "custom_upload.md"):
+    """
+    将新的文档内容写入 ChromaDB 向量库
+    """
+    vector_store = get_vector_store()
+    
+    # 构造 Document 对象
+    doc = Document(page_content=content, metadata={"source": source})
+    
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=300,
+        chunk_overlap=50,
+    )
+    docs = text_splitter.split_documents([doc])
+    
+    vector_store.add_documents(docs)
+    vector_store.persist()
+    print(f"成功将 {len(docs)} 个文本块存入知识库。")
+    return len(docs)
+
 def query_policy(query: str) -> str:
     """
     检索电商退换货政策文档，回答用户关于规则的问题。
