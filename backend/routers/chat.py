@@ -31,19 +31,17 @@ class ChatResponse(BaseModel):
 async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
     session_id = request.session_id
     new_session_created = False
-    if not session_id:
-        session_id = str(uuid.uuid4())
+    db_session = None
+
+    if session_id:
+        db_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        
+    if not db_session:
+        session_id = session_id or str(uuid.uuid4())
         db_session = ChatSession(id=session_id)
         db.add(db_session)
         db.commit()
         new_session_created = True
-    else:
-        db_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-        if not db_session:
-            db_session = ChatSession(id=session_id)
-            db.add(db_session)
-            db.commit()
-            new_session_created = True
             
     if new_session_created or not db_session.title:
         try:

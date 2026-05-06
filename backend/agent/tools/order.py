@@ -1,11 +1,6 @@
-import os
 import json
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
 from langchain_core.tools import tool
-
-from database.models import Order, User, Product, OrderStatus
+from database.models import Order, OrderStatus
 from database.deps import SessionLocal
 
 @tool
@@ -32,9 +27,16 @@ def get_recent_orders() -> str:
                 "created_at": order.created_at.strftime("%Y-%m-%d %H:%M")
             })
             
-        return json.dumps(order_list, ensure_ascii=False)
+        return json.dumps({
+            "__ui_trigger__": "ORDER_SELECTOR",
+            "data": order_list
+        }, ensure_ascii=False)
     except Exception as e:
-        return json.dumps({"error": str(e)}, ensure_ascii=False)
+        return json.dumps({
+            "__ui_trigger__": "ORDER_SELECTOR",
+            "data": [],
+            "error": str(e)
+        }, ensure_ascii=False)
     finally:
         db.close()
 

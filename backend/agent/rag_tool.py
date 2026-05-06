@@ -49,8 +49,6 @@ def get_vector_store():
         embedding=embeddings,
         persist_directory=PERSIST_DIRECTORY
     )
-    # 强制持久化
-    _vector_store.persist()
     print("知识库向量化完成。")
     return _vector_store
 
@@ -72,7 +70,6 @@ def add_document_to_db(content: str, source: str = "custom_upload.md"):
     docs = text_splitter.split_documents([doc])
     
     vector_store.add_documents(docs)
-    vector_store.persist()
     print(f"成功将 {len(docs)} 个文本块存入知识库。")
     return len(docs)
 
