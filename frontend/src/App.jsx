@@ -1,4 +1,3 @@
-import React from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import MainChatArea from './components/MainChatArea';
@@ -11,6 +10,7 @@ function App() {
     sessionStatus,
     messages,
     isLoading,
+    streamPhase,
     createNewSession,
     selectSession,
     handleSendMessage
@@ -30,6 +30,7 @@ function App() {
           sessionStatus={sessionStatus} 
           messages={messages} 
           isLoading={isLoading} 
+          streamPhase={streamPhase}
           handleSendMessage={handleSendMessage} 
         />
       </div>

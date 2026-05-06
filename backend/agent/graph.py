@@ -1,10 +1,12 @@
-import os
-from typing import Annotated, Sequence, TypedDict
+import json
+import re
+from typing import Any, Annotated, Sequence, TypedDict
 from dotenv import load_dotenv
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from langgraph.graph import StateGraph, START, END
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
@@ -53,13 +55,14 @@ SYSTEM_PROMPT = """你是一个专业、礼貌的电商售后客服助手。你�
 """
 
 # 定义执行大模型的节点
-async def call_model(state: AgentState):
+async def call_model(state: AgentState, config: RunnableConfig):
     messages = state["messages"]
     # 如果没有系统提示词，就加上
     if not messages or not isinstance(messages[0], SystemMessage):
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
     
-    response = await llm_with_tools.ainvoke(messages)
+    # Python 3.10 下需要显式透传 config，LangGraph 才能正确传播流式上下文。
+    response = await llm_with_tools.ainvoke(messages, config=config)
     return {"messages": [response]}
 
 # 构建图
@@ -82,6 +85,41 @@ workflow.add_edge("tools", "agent")
 # 编译图
 app = workflow.compile()
 
+CONTROL_TOKEN_PATTERNS = (
+    re.compile(r"\[ORDER_SELECTOR_TRIGGERED:\[[\s\S]*?\]\]"),
+    re.compile(r"\[HUMAN_HANDOFF_TRIGGERED\]"),
+    re.compile(r"\[TOOL_EVENT:\{[\s\S]*?\}\]"),
+    re.compile(r"\*\[正在调用工具:\s*([^[\]*]+?)\]\*"),
+)
+
+
+def _strip_control_tokens(text: str) -> str:
+    """移除仅供前端展示或交互使用的控制标记，避免污染后续对话历史。"""
+    cleaned = text or ""
+    for pattern in CONTROL_TOKEN_PATTERNS:
+        cleaned = pattern.sub("", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
+def _build_tool_event(event: str, tool_name: str, tool_call_id: str = "", detail: str = "") -> str:
+    payload = {
+        "type": "tool",
+        "event": event,
+        "tool": tool_name,
+    }
+    if tool_call_id:
+        payload["call_id"] = tool_call_id
+    if detail:
+        payload["detail"] = detail
+    return f"[TOOL_EVENT:{json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}]"
+
+
+def _is_tool_error(tool_output: str) -> bool:
+    lowered_output = (tool_output or "").lower()
+    error_signals = ("error", "exception", "traceback", "失败", "错误")
+    return any(signal in lowered_output for signal in error_signals)
+
 def _build_messages(user_input: str, history: list = None):
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
     if history:
@@ -91,8 +129,7 @@ def _build_messages(user_input: str, history: list = None):
             if msg['role'] == 'user':
                 messages.append(HumanMessage(content=msg['content']))
             elif msg['role'] == 'assistant':
-                from langchain_core.messages import AIMessage
-                messages.append(AIMessage(content=msg['content']))
+                messages.append(AIMessage(content=_strip_control_tokens(msg['content'])))
                 
     messages.append(HumanMessage(content=user_input))
     return messages
@@ -114,34 +151,113 @@ async def astream_chat_with_agent(user_input: str, history: list = None):
     供外部 API 调用的流式异步便捷函数
     """
     messages = _build_messages(user_input, history)
-    
-    async for event in app.astream_events({"messages": messages}, version="v2"):
-        print("EVENT:", event["event"], event.get("name"))
-        if event["event"] == "on_chat_model_stream":
-            # if "rewrite_query" in event.get("tags", []):
-            #     continue
-            chunk = event["data"]["chunk"]
-            if chunk.content:
-                yield chunk.content
-        elif event["event"] == "on_tool_start":
-            yield f"\n*[正在调用工具: {event['name']}]*\n"
-        elif event["event"] == "on_tool_end":
-            if event['name'] == "transfer_to_human":
-                yield "[HUMAN_HANDOFF_TRIGGERED]"
-            elif event['name'] == "get_recent_orders":
-                # 输出特殊的触发标签给前端，包含订单数据的 JSON
-                output_data = event['data'].get('output', '{}')
-                if hasattr(output_data, 'content'):
-                    output_data = output_data.content
-                
-                try:
-                    import json
-                    parsed_data = json.loads(output_data)
-                    # 提取我们在 tool 中包装的 data 字段发送给前端，避免前端报错
-                    actual_data = parsed_data.get("data", [])
-                    yield f"[ORDER_SELECTOR_TRIGGERED:{json.dumps(actual_data, ensure_ascii=False)}]"
-                except Exception as e:
-                    yield f"[ORDER_SELECTOR_TRIGGERED:[]]"
+    streamed_reply = ""
+    emitted_completed_messages: set[str] = set()
+    emitted_tool_calls: set[str] = set()
+    tool_name_by_call_id: dict[str, str] = {}
+
+    def _extract_text(payload: Any) -> str:
+        """兼容 LangChain 不同事件结构，尽量提取最终可展示文本。"""
+        if payload is None:
+            return ""
+        if isinstance(payload, str):
+            return payload
+        if hasattr(payload, "content"):
+            return _extract_text(payload.content)
+        if isinstance(payload, list):
+            parts = []
+            for item in payload:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text = item.get("text", "")
+                    if text:
+                        parts.append(text)
+                else:
+                    text = _extract_text(item)
+                    if text:
+                        parts.append(text)
+            return "".join(parts)
+        if isinstance(payload, dict):
+            for key in ("content", "output", "message", "text", "messages", "generations"):
+                if key in payload:
+                    text = _extract_text(payload[key])
+                    if text:
+                        return text
+        return ""
+
+    def _yield_remaining_text(final_text: str) -> str:
+        nonlocal streamed_reply
+        if not final_text or final_text in emitted_completed_messages:
+            return ""
+
+        if streamed_reply and final_text.startswith(streamed_reply):
+            remaining_text = final_text[len(streamed_reply):]
+        elif streamed_reply == final_text:
+            remaining_text = ""
+        else:
+            remaining_text = final_text
+
+        streamed_reply = final_text
+        emitted_completed_messages.add(final_text)
+        return remaining_text
+
+    async for chunk in app.astream(
+        {"messages": messages},
+        stream_mode=["messages", "updates"],
+        version="v2",
+    ):
+        chunk_type = chunk.get("type")
+
+        if chunk_type == "messages":
+            token, metadata = chunk["data"]
+            if metadata.get("langgraph_node") == "tools":
+                continue
+
+            text = _extract_text(token)
+            if text:
+                streamed_reply += text
+                yield text
+
+        elif chunk_type == "updates":
+            for source, update in chunk["data"].items():
+                update_messages = update.get("messages", [])
+                if not update_messages:
+                    continue
+
+                for current_message in update_messages:
+                    if source == "agent" and isinstance(current_message, AIMessage):
+                        for tool_call in current_message.tool_calls:
+                            tool_name = tool_call.get("name", "")
+                            tool_call_id = tool_call.get("id", "")
+                            if tool_call_id:
+                                tool_name_by_call_id[tool_call_id] = tool_name
+
+                            tool_key = tool_call_id or f"{tool_name}:{json.dumps(tool_call.get('args', {}), sort_keys=True, ensure_ascii=False)}"
+                            if tool_name and tool_key not in emitted_tool_calls:
+                                emitted_tool_calls.add(tool_key)
+                                yield _build_tool_event("start", tool_name, tool_call_id)
+
+                        final_text = _extract_text(current_message.content)
+                        if final_text and not current_message.tool_calls:
+                            remaining_text = _yield_remaining_text(final_text)
+                            if remaining_text:
+                                yield remaining_text
+
+                    elif source == "tools" and isinstance(current_message, ToolMessage):
+                        tool_name = tool_name_by_call_id.get(current_message.tool_call_id, "")
+                        tool_output = _extract_text(current_message.content)
+                        if tool_name:
+                            tool_event = "error" if _is_tool_error(tool_output) else "complete"
+                            yield _build_tool_event(tool_event, tool_name, current_message.tool_call_id)
+
+                        if tool_name == "transfer_to_human" and "[HUMAN_HANDOFF_TRIGGERED]" in tool_output:
+                            yield "[HUMAN_HANDOFF_TRIGGERED]"
+                        elif tool_name == "get_recent_orders":
+                            try:
+                                parsed_data = json.loads(tool_output or "{}")
+                                actual_data = parsed_data.get("data", [])
+                                yield f"[ORDER_SELECTOR_TRIGGERED:{json.dumps(actual_data, ensure_ascii=False)}]"
+                            except Exception:
+                                yield "[ORDER_SELECTOR_TRIGGERED:[]]"
 
 async def generate_session_title(user_input: str) -> str:
     """

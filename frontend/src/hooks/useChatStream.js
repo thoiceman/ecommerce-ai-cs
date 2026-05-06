@@ -14,6 +14,7 @@ export function useChatStream() {
   const [sessionStatus, setSessionStatus] = useState('AI_AGENT');
   const [messages, setMessages] = useState([initialMessage]);
   const [isLoading, setIsLoading] = useState(false);
+  const [streamPhase, setStreamPhase] = useState('idle');
   const isInitialMount = useRef(true);
 
   const loadSessions = async () => {
@@ -66,6 +67,7 @@ export function useChatStream() {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setIsLoading(true);
+    setStreamPhase('waiting');
 
     try {
       const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
@@ -96,7 +98,7 @@ export function useChatStream() {
         done = readerDone;
         if (value) {
           if (!firstChunkReceived) {
-            setIsLoading(false);
+            setStreamPhase('streaming');
             firstChunkReceived = true;
           }
           buffer += decoder.decode(value, { stream: true });
@@ -139,6 +141,7 @@ export function useChatStream() {
       }]);
     } finally {
       setIsLoading(false);
+      setStreamPhase('idle');
       loadSessions();
     }
   };
@@ -149,6 +152,7 @@ export function useChatStream() {
     sessionStatus,
     messages,
     isLoading,
+    streamPhase,
     createNewSession,
     selectSession,
     handleSendMessage

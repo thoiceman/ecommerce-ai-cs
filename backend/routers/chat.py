@@ -78,6 +78,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
         try:
             async for chunk in astream_chat_with_agent(request.message, history=history_dicts):
                 full_reply += chunk
+                print(full_reply,'full_reply')
                 if "[转接人工]" in chunk or "[HUMAN_HANDOFF_TRIGGERED]" in full_reply:
                     is_handoff = True
                 
@@ -97,6 +98,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
                             db_s.status = SessionStatus.HUMAN_AGENT
                     
                     ai_msg = ChatMessage(session_id=session_id, role="assistant", content=full_reply.replace("[HUMAN_HANDOFF_TRIGGERED]", ""))
+                    print(ai_msg,'ai_msg')
                     db_gen.add(ai_msg)
                     db_gen.commit()
                 finally:
