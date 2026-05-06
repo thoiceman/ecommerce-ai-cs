@@ -33,7 +33,9 @@ def init_db():
         
         prod1 = Product(name="苹果 iPhone 15 Pro", price=7999.0, description="最新款智能手机")
         prod2 = Product(name="Sony 降噪耳机", price=2499.0, description="头戴式无线蓝牙耳机")
-        db.add_all([prod1, prod2])
+        prod3 = Product(name="绿联 手机保护壳", price=59.0, description="全包防摔透明壳")
+        prod4 = Product(name="罗技 Master 3S 鼠标", price=799.0, description="高效办公无线鼠标")
+        db.add_all([prod1, prod2, prod3, prod4])
         db.commit()
         
         order1 = Order(
@@ -52,11 +54,28 @@ def init_db():
             status=OrderStatus.RETURNED,
             logistics_info="退货物流：商家已签收，正在处理退款"
         )
-        db.add_all([order1, order2])
+        # 为张三（user1）再增加两条订单记录
+        order3 = Order(
+            order_no="ORD20250505003",
+            user_id=user1.id,
+            product_id=prod3.id,
+            amount=59.0,
+            status=OrderStatus.DELIVERED,
+            logistics_info="中通快递：您的快件已签收，签收人：本人"
+        )
+        order4 = Order(
+            order_no="ORD20250505004",
+            user_id=user1.id,
+            product_id=prod4.id,
+            amount=799.0,
+            status=OrderStatus.PENDING,
+            logistics_info="暂无物流信息，等待买家付款"
+        )
+        db.add_all([order1, order2, order3, order4])
         db.commit()
         
         print("数据库初始化完成，已插入模拟测试数据。")
-        print("可用测试订单号：ORD20250505001 (张三的手机), ORD20250505002 (李四的耳机)")
+        print("可用测试订单号：ORD20250505001, ORD20250505003, ORD20250505004 (张三的订单), ORD20250505002 (李四的耳机)")
         db.close()
     except Exception as e:
         print(f"数据库初始化失败: {e}")

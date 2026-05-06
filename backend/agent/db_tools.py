@@ -1,4 +1,5 @@
 import os
+import json
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -6,6 +7,36 @@ from langchain_core.tools import tool
 
 from database.models import Order, User, Product, OrderStatus
 from database.deps import SessionLocal
+
+@tool
+def get_recent_orders() -> str:
+    """
+    当用户询问售后订单、退货、物流，但没有提供具体的订单号时，调用此工具获取用户的近期历史订单列表。
+    """
+    db = SessionLocal()
+    try:
+        # 为了演示，暂时固定查询 user_id = 1 (张三) 的订单
+        orders = db.query(Order).filter(Order.user_id == 1).order_by(Order.created_at.desc()).limit(5).all()
+        
+        if not orders:
+            return json.dumps([])
+            
+        order_list = []
+        for order in orders:
+            product_name = order.product.name if order.product else "未知商品"
+            order_list.append({
+                "order_no": order.order_no,
+                "product_name": product_name,
+                "amount": order.amount,
+                "status": order.status.value,
+                "created_at": order.created_at.strftime("%Y-%m-%d %H:%M")
+            })
+            
+        return json.dumps(order_list, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+    finally:
+        db.close()
 
 @tool
 def get_order_status(order_no: str) -> str:

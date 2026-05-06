@@ -78,7 +78,7 @@ function App() {
                 人工客服接待中
               </div>
             )}
-            <ChatBox messages={messages} isLoading={isLoading} />
+            <ChatBox messages={messages} isLoading={isLoading} onSendMessage={handleSendMessage} />
             <InputArea onSendMessage={handleSendMessage} isLoading={isLoading} />
           </main>
         </div>
