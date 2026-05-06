@@ -170,7 +170,7 @@ function App() {
             >
               <MessageSquare className="w-4 h-4 flex-shrink-0" />
               <span className="truncate text-sm">
-                {s.created_at.substring(0, 16).replace('T', ' ')}
+                {s.title || s.created_at.substring(0, 16).replace('T', ' ')}
               </span>
             </button>
           ))}

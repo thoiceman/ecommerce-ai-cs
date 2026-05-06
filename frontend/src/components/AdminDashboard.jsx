@@ -136,7 +136,7 @@ export default function AdminDashboard() {
                 <h2 className="text-lg font-semibold text-gray-800">上传新的政策条款 (Markdown/纯文本)</h2>
               </div>
               <div>
-                <label className="cursor-pointer bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
+                <label className="cursor-pointer bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium">
                   选择本地文件
                   <input 
                     type="file" 
@@ -147,12 +147,13 @@ export default function AdminDashboard() {
                 </label>
               </div>
             </div>
-            <textarea
-              className="w-full h-48 border border-gray-300 rounded-xl p-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              placeholder="在此粘贴最新的售后政策、运费规则等文本，提交后将自动分块并向量化存入 ChromaDB，供 AI 检索使用..."
-              value={kbContent}
-              onChange={(e) => setKbContent(e.target.value)}
-            ></textarea>
+            
+            {kbContent && (
+              <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl max-h-64 overflow-y-auto text-sm text-gray-700 whitespace-pre-wrap">
+                {kbContent}
+              </div>
+            )}
+            
             <div className="mt-4 flex items-center justify-between">
               <span className="text-sm text-gray-500">{uploadStatus}</span>
               <button

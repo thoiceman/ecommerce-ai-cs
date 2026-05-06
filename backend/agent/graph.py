@@ -145,6 +145,14 @@ async def astream_chat_with_agent(user_input: str, history: list = None):
             if event['name'] == "transfer_to_human":
                 yield "[HUMAN_HANDOFF_TRIGGERED]"
 
+async def generate_session_title(user_input: str) -> str:
+    """
+    根据用户的第一条消息生成简短的会话标题
+    """
+    prompt = f"请根据以下用户咨询内容，生成一个简短的会话标题（不超过10个字）。直接返回标题，不要有任何多余文字。\n\n内容：{user_input}"
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    return response.content.strip().strip('"').strip('“').strip('”')
+
 if __name__ == "__main__":
     # 本地简单测试
     print(">>> User: 退货运费怎么算？")

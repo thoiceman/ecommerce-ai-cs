@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker
 
 from database.models import Base, ChatSession, ChatMessage, SessionStatus
-from agent.graph import chat_with_agent, astream_chat_with_agent
+from agent.graph import chat_with_agent, astream_chat_with_agent, generate_session_title
 import os
 from dotenv import load_dotenv
 
@@ -64,18 +64,31 @@ class ChatResponse(BaseModel):
 async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
     # 确保 session_id
     session_id = request.session_id
+    new_session_created = False
     if not session_id:
         session_id = str(uuid.uuid4())
         db_session = ChatSession(id=session_id)
         db.add(db_session)
         db.commit()
+        new_session_created = True
     else:
         db_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
         if not db_session:
             db_session = ChatSession(id=session_id)
             db.add(db_session)
             db.commit()
+            new_session_created = True
             
+    # 如果是新会话，生成标题
+    if new_session_created or not db_session.title:
+        try:
+            # 异步生成标题并更新
+            title = await generate_session_title(request.message)
+            db_session.title = title
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to generate title: {e}")
+
     # 存入用户消息
     user_msg = ChatMessage(session_id=session_id, role="user", content=request.message)
     db.add(user_msg)
@@ -139,7 +152,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
 @app.get("/api/sessions")
 def get_sessions(db: Session = Depends(get_db)):
     sessions = db.query(ChatSession).order_by(desc(ChatSession.created_at)).all()
-    return [{"id": s.id, "created_at": s.created_at, "status": s.status} for s in sessions]
+    return [{"id": s.id, "title": s.title, "created_at": s.created_at, "status": s.status} for s in sessions]
 
 @app.get("/api/sessions/{session_id}/messages")
 def get_session_messages(session_id: str, db: Session = Depends(get_db)):

@@ -23,6 +23,7 @@ class ChatSession(Base):
     
     id = Column(String(50), primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    title = Column(String(100), nullable=True) # 新增标题字段
     status = Column(Enum(SessionStatus), default=SessionStatus.AI_AGENT)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
