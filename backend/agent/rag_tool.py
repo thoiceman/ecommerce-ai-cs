@@ -78,10 +78,10 @@ from langchain_core.messages import HumanMessage
 
 def rewrite_query(query: str) -> str:
     """使用 LLM 将用户的口语化提问改写为标准的知识库检索词"""
-    llm = ChatOpenAI(model="qwen-max", temperature=0.1)
+    llm = ChatOpenAI(model="qwen-max", temperature=0.1, tags=["rewrite_query"])
     prompt = f"你是一个电商知识库检索助手。请将以下用户的口语化提问改写为适合在退换货政策知识库中检索的标准关键词或短语，只返回改写后的关键词，不要有多余的话。\n\n用户提问：{query}"
     try:
-        response = llm.invoke([HumanMessage(content=prompt)])
+        response = llm.invoke([HumanMessage(content=prompt)], config={"callbacks": []})
         return response.content.strip()
     except Exception as e:
         print(f"Query重写失败，使用原词: {e}")
