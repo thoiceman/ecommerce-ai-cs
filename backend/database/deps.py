@@ -11,6 +11,14 @@ connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite")
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
+def ensure_database_schema() -> None:
+    """若表不存在则创建（幂等）。Docker/首次部署不会自动跑 init_db 脚本，需在进程启动时建表。"""
+    from database.models import Base
+
+    Base.metadata.create_all(bind=engine)
+
+
 def get_db():
     db = SessionLocal()
     try:

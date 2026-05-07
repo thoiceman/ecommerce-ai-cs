@@ -284,6 +284,20 @@ docker stats
 
 在 Docker 命名卷 **`backend_sqlite_data`** 映射的目录 `/app/sqlite_data` 中；由 Compose 的 `DATABASE_URL` 覆盖项指定，无需在宿主机手写数据库文件路径。
 
+### Q5：报错 `no such table: chat_sessions`
+
+说明 SQLite 文件已有但未建表。当前后端会在启动时自动执行 **`create_all`**（幂等、不清数据）。请 **`git pull` 后重建并重启 backend**：
+
+```bash
+docker compose up -d --build backend
+```
+
+若仍需写入 **`database/init_db.py`** 里的演示订单数据（脚本会先删表再建表，仅适合空库/Demo），在备份后再执行：
+
+```bash
+docker compose exec backend python database/init_db.py
+```
+
 ---
 
 ## 12. 仓库内相关文件索引

@@ -6,6 +6,7 @@ import uvicorn
 
 from routers import chat, session, admin
 from agent.rag_tool import get_vector_store
+from database.deps import ensure_database_schema
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -13,7 +14,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动时预热加载 ChromaDB
+    logger.info("Ensuring database schema...")
+    try:
+        ensure_database_schema()
+        logger.info("Database schema ready.")
+    except Exception as e:
+        logger.exception("Failed to create database tables: %s", e)
+        raise
     logger.info("Initializing Vector Store on startup...")
     try:
         get_vector_store()
