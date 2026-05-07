@@ -141,6 +141,18 @@ VITE_API_BASE_URL=http://123.45.67.89:8000
 
 若后端将来挂在反向代理的子路径或 HTTPS，此处改为最终用户在浏览器里请求的 API 根地址即可。
 
+### 6.3 部署前自检（推荐）
+
+在仓库根目录执行：
+
+```bash
+docker compose config
+```
+
+能正常打印合成后的 YAML 即表示 Compose 文件语法与变量替换无报错。
+
+说明：**运行时**仍须在 **6.1** 中填写 `backend/.env` 里的密钥；当前 `docker-compose.yml` 将 `backend/.env` 设为 **可选**，便于在未放密钥时先执行 `docker compose build`。若你的环境报错「`env_file` 不支持 `path` / `required`」，说明 Docker Compose 版本过旧，请升级到 **v2.24+**，或将 `env_file` 改回 `- backend/.env` 单行写法并**先创建该文件**再执行 `compose up`。
+
 ---
 
 ## 7. 构建并启动

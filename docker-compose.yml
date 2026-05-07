@@ -13,8 +13,10 @@ services:
         APT_MIRROR: ${APT_MIRROR:-http://mirrors.aliyun.com}
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
     container_name: ecommerce-ai-backend
+    # 未创建 backend/.env 时仍可 compose build；上线前须填入密钥否则调用模型会失败
     env_file:
-      - backend/.env
+      - path: backend/.env
+        required: false
     environment:
       # 覆盖 backend/.env 里的 DATABASE_URL：SQLite 必须写在目录卷里（不能把命名卷挂到「单文件」路径）
       DATABASE_URL: sqlite:////app/sqlite_data/ecommerce_ai.db

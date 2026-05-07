@@ -19,14 +19,14 @@ RUN set -eux; \
       build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend /app
-
-# PyPI 官方源在内地构建较慢；默认清华镜像，可通过构建参数改为阿里云 / 腾讯云等
+# 先装依赖再 COPY 源码：代码改动不会使 pip 层失效，构建更稳定
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip install --no-cache-dir --upgrade pip -i "${PIP_INDEX_URL}" && pip install --no-cache-dir -i "${PIP_INDEX_URL}" \
-    fastapi uvicorn langchain langchain-core langchain-community langgraph langchain-openai \
-    chromadb sentence-transformers pymysql psycopg2-binary redis sqlalchemy python-dotenv \
-    pydantic cryptography "numpy<2.0.0"
+    fastapi uvicorn \
+    langchain-core langchain-community langchain-text-splitters langchain-openai langgraph \
+    chromadb sqlalchemy python-dotenv pydantic "numpy<2.0.0"
+
+COPY backend /app
 
 EXPOSE 8000
 

@@ -14,3 +14,6 @@ venv
 .venv
 backend/.conda
 backend/server.log
+# 勿把本机数据库 / 向量目录打进镜像（运行时由卷挂载）
+backend/ecommerce_ai.db
+backend/database/chroma_db/
