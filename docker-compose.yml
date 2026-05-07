@@ -1,6 +1,7 @@
 # 在项目根目录创建 .env（可不提交 git），供变量替换：
 #   VITE_API_BASE_URL=http://你的公网IP或域名:8000
 #   APT_MIRROR=http://mirrors.cloud.tencent.com   （可选，构建 backend 时加速 Debian APT）
+#   PIP_INDEX_URL=https://mirrors.cloud.tencent.com/pypi/simple   （可选，加速 pip）
 # 也可部署前执行：export VITE_API_BASE_URL=http://x.x.x.x:8000
 
 services:
@@ -10,6 +11,7 @@ services:
       dockerfile: backend/Dockerfile
       args:
         APT_MIRROR: ${APT_MIRROR:-http://mirrors.aliyun.com}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
     container_name: ecommerce-ai-backend
     env_file:
       - backend/.env
