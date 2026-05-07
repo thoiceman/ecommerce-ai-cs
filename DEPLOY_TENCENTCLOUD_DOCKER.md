@@ -298,6 +298,12 @@ docker compose up -d --build backend
 docker compose exec backend python database/init_db.py
 ```
 
+### Q6：部署后是否自带演示订单 / 用户？
+
+会。**后端启动时**若检测到库里**还没有任何用户**，会自动写入与本地一致的演示用户（张三、李四）及四条订单（含订单号 `ORD20250505001` 等）。已有真实用户数据时**不会**覆盖或重复插入。
+
+若在 `.env` 中设置 **`SEED_DEMO_ON_EMPTY=false`**（或通过 Compose `environment` 注入），可关闭该行为。
+
 ---
 
 ## 12. 仓库内相关文件索引
@@ -309,6 +315,7 @@ docker compose exec backend python database/init_db.py
 | `frontend/Dockerfile` | 前端构建 + Nginx 运行镜像 |
 | `frontend/nginx.conf` | 前端静态站点与 SPA `try_files` |
 | `backend/.env.example` | 后端环境变量模板 |
+| `backend/database/seed_demo.py` | 空库时幂等写入演示用户与订单 |
 | `.dockerignore` | 减小构建上下文、避免把 `.env` 打进镜像 |
 
 ---

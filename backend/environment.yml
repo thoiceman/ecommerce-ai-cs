@@ -17,6 +17,7 @@ dependencies:
       - langchain-community
       - langgraph
       - langchain-openai
+      - dashscope
       - chromadb
       - sentence-transformers
       - pymysql

@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,7 +7,8 @@ import uvicorn
 
 from routers import chat, session, admin
 from agent.rag_tool import get_vector_store
-from database.deps import ensure_database_schema
+from database.deps import SessionLocal, ensure_database_schema
+from database.seed_demo import seed_demo_data_if_empty
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +23,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.exception("Failed to create database tables: %s", e)
         raise
+    if os.getenv("SEED_DEMO_ON_EMPTY", "true").lower() in ("1", "true", "yes"):
+        db = SessionLocal()
+        try:
+            if seed_demo_data_if_empty(db):
+                logger.info("已在空库中写入演示用户与订单数据。")
+        finally:
+            db.close()
     logger.info("Initializing Vector Store on startup...")
     try:
         get_vector_store()

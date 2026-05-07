@@ -24,7 +24,7 @@ ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip install --no-cache-dir --upgrade pip -i "${PIP_INDEX_URL}" && pip install --no-cache-dir -i "${PIP_INDEX_URL}" \
     fastapi uvicorn \
     langchain-core langchain-community langchain-text-splitters langchain-openai langgraph \
-    chromadb sqlalchemy python-dotenv pydantic "numpy<2.0.0"
+    dashscope chromadb sqlalchemy python-dotenv pydantic "numpy<2.0.0"
 
 COPY backend /app
 
