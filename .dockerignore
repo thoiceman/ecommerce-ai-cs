@@ -1,0 +1,16 @@
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.DS_Store
+**/node_modules
+**/dist
+**/.vite
+**/.env
+**/*.log
+venv
+.venv
+backend/.conda
+backend/server.log

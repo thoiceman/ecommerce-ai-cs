@@ -1,0 +1,38 @@
+# 在项目根目录创建 .env（可不提交 git），供变量替换：
+#   VITE_API_BASE_URL=http://你的公网IP或域名:8000
+# 也可部署前执行：export VITE_API_BASE_URL=http://x.x.x.x:8000
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: ecommerce-ai-backend
+    env_file:
+      - backend/.env
+    environment:
+      # 覆盖 backend/.env 里的 DATABASE_URL：SQLite 必须写在目录卷里（不能把命名卷挂到「单文件」路径）
+      DATABASE_URL: sqlite:////app/sqlite_data/ecommerce_ai.db
+    volumes:
+      - backend_sqlite_data:/app/sqlite_data
+      - backend_chroma_data:/app/database/chroma_db
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: ecommerce-ai-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_sqlite_data:
+  backend_chroma_data:
